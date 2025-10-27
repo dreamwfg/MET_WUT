@@ -1,0 +1,23 @@
+/* filepath: c:\Users\muslima\PycharmProjects\DjangoProject\staticfiles\custom_admin.css */
+/* Constrain Webster logo to a reasonable size so it isn't overwhelmingly large. */
+.jazzmin .navbar-brand img[src$="webster-university.jpg"],
+.jazzmin .brand-logo img[src$="webster-university.jpg"],
+.jazzmin .site-logo img[src$="webster-university.jpg"],
+.jazzmin .login-logo img[src$="webster-university.jpg"],
+img[src$="webster-university.jpg"] {
+  max-width: 220px !important; /* desktop/tablet; change this value to taste */
+  width: auto !important;
+  height: auto !important;
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .jazzmin .navbar-brand img[src$="webster-university.jpg"],
+  .jazzmin .brand-logo img[src$="webster-university.jpg"],
+  .jazzmin .login-logo img[src$="webster-university.jpg"],
+  img[src$="webster-university.jpg"] {
+    max-width: 140px !important; /* mobile */
+  }
+}
