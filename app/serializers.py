@@ -6,15 +6,21 @@ class TestDateSerializer(serializers.ModelSerializer):
     spots_left = serializers.IntegerField(read_only=True)
     is_full = serializers.BooleanField(read_only=True)
     date = serializers.DateField(format="%Y-%m-%d")
-    time = serializers.TimeField(format="%H:%M", allow_null=True)
+    time = serializers.SerializerMethodField()
 
     class Meta:
         model = TestDate
-        fields = ['id', 'date', 'time', 'max_spots', 'spots_left', 'is_full']
+        fields = ['id', 'date', 'max_spots', 'spots_left', 'is_full', 'time']
+
+    def get_time(self, obj):
+        if obj.time:
+            return obj.time.strftime("%H:%M")
+        return "Test time will be displayed after payment confirmation"
 
 
 
 class BookingListSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
     date = serializers.DateField(source='test_date.date', read_only=True, format="%Y-%m-%d")
     time = serializers.TimeField(source='test_date.time', read_only=True, format="%H:%M", allow_null=True)
 

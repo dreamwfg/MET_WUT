@@ -31,5 +31,5 @@ class Booking(models.Model):
     class Meta:
         unique_together = ('user', 'test_date')
 
-    def __str__(self):
-        return f"{self.user.username} → {self.test_date.date}"
+    # def __str__(self):
+    #     return f"{self.user.username} → {self.test_date.date}"

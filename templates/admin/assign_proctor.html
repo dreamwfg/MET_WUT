@@ -1,0 +1,133 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<style>
+    body {
+        background: linear-gradient(145deg, #f4f6fa 0%, #e7ecf5 100%);
+        font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .page-header {
+        background: linear-gradient(90deg, #003366, #004b8d);
+        padding: 40px 70px;
+        color: white;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        border-bottom-left-radius: 40px;
+        border-bottom-right-radius: 40px;
+    }
+
+    .page-header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .form-container {
+        max-width: 850px;
+        margin: 60px auto;
+        background: white;
+        padding: 60px 70px;
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+        animation: fadeIn 0.6s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-container label {
+        display: block;
+        font-size: 16px;
+        font-weight: 600;
+        color: #003366;
+        margin-bottom: 8px;
+    }
+
+    .form-container input[type="text"] {
+        width: 100%;
+        padding: 14px 16px;
+        border: 1px solid #ccd4e0;
+        border-radius: 10px;
+        font-size: 16px;
+        color: #1f2937;
+        margin-bottom: 30px;
+        transition: all 0.2s ease;
+    }
+
+    .form-container input[type="text"]:focus {
+        border-color: #004a99;
+        box-shadow: 0 0 0 3px rgba(0, 74, 153, 0.15);
+        outline: none;
+    }
+
+    .form-container button {
+        display: inline-block;
+        background: linear-gradient(90deg, #003366, #0055b3);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        padding: 14px 40px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 15px rgba(0, 51, 102, 0.25);
+    }
+
+    .form-container button:hover {
+        background: linear-gradient(90deg, #002147, #00407a);
+        box-shadow: 0 8px 18px rgba(0, 51, 102, 0.35);
+        transform: translateY(-2px);
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-top: 25px;
+        color: #003366;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 15px;
+        transition: color 0.2s;
+    }
+
+    .back-link:hover {
+        color: #001f3f;
+        text-decoration: underline;
+    }
+
+    .info-box {
+        background: #f1f5fb;
+        border-left: 5px solid #003366;
+        padding: 18px 25px;
+        margin-bottom: 40px;
+        border-radius: 10px;
+        color: #003366;
+        font-size: 15px;
+    }
+</style>
+
+<div class="page-header">
+    <h1>Assign Proctor to Selected Applicants</h1>
+</div>
+
+<div class="form-container">
+    <div class="info-box">
+        Use this form to assign a <strong>proctor</strong> to all selected applicants.
+        Once assigned, each applicant’s record will automatically update with the chosen proctor name.
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <label for="id_proctor_name">Proctor Name</label>
+        {{ form.proctor_name }}
+        <input type="hidden" name="action" value="assign_proctor">
+        <input type="hidden" name="apply" value="1">
+        <button type="submit">Assign Proctor</button>
+    </form>
+
+    <a href="javascript:history.back()" class="back-link">← Back to Applicants</a>
+</div>
+{% endblock %}

@@ -1,106 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Aura!</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Arial', sans-serif;
-            background-color: rgba(255, 255, 255, 0.39); /* Light beige background */
-            color: #1F1D1F; /* Dark purple text color */
-            line-height: 1.6;
-        }
-        .email-body {
-            max-width: 600px;
-            margin: 40px auto;
-            padding: 20px;
-            background-color: #fcf8f2; /* Light beige background */
-            border-radius: 15px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-        }
-        .email-content {
-            padding: 40px;
-            background-color: #ffffff; /* Light beige background */
-            border-radius: 15px;
-            text-align: center;
-            border: 1px solid #D4B8D9; /* Light purple border */
-            position: relative;
-        }
-        .email-header img {
-            max-height: 100px; /* Adjust logo size as needed */
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #1F1D1F; /* Dark purple heading */
-            font-weight: bold;
-            font-size: 32px;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #1F1D1F; /* Dark purple text */
-            margin: 10px 0 20px;
-            font-size: 16px;
-        }
-        .activation-code {
-            font-size: 24px;
-            color: #1F1D1F; /* Dark purple text */
-            background-color: #FFFFFF; /* White background */
-            padding: 20px;
-            border-radius: 10px;
-            display: block;
-            margin: 20px auto;
-            border: 2px dashed #1F1D1F; /* Dark purple dashed border */
-            font-weight: bold;
-            text-align: center;
-        }
-        .button {
-            background-color: #ffffff; /* Light purple button */
-            color: #FFFFFF; /* White text */
-            text-decoration: none;
-            padding: 15px 30px;
-            border-radius: 30px;
-            display: inline-block;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            margin: 20px 10px; /* Adjust button margins */
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow */
-            border: none;
-            cursor: pointer;
-            text-align: center;
-        }
-        .button:hover {
-            background-color: #181718; /* Darker purple on hover */
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5); /* Darker shadow on hover */
-        }
-        .support-text {
-            font-size: 14px;
-            margin-top: 20px;
-            color: #1F1D1F; /* Dark purple text */
-        }
-        .footer-text {
-            position: absolute;
-            bottom: -40px; /* Adjust as needed */
-            left: 0;
-            width: 100%;
-            font-size: 12px;
-            color: #1F1D1F; /* Dark purple text */
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WUT MEPT Exam Activation</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: #f4f6fa;
+        color: #002147; /* Deep university blue */
+        line-height: 1.6;
+    }
+    .email-body {
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 10px;
+        border: 4px solid #003366; /* 🔹 Full frame border */
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    }
+    .email-header {
+        text-align: center;
+        margin-bottom: 20px;
+        border-bottom: 3px solid #003366; /* subtle separator */
+        padding-bottom: 10px;
+    }
+    .email-header img {
+        max-height: 90px;
+        margin-top: 10px;
+    }
+    h1 {
+        color: #003366;
+        font-weight: 700;
+        font-size: 24px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    p {
+        margin: 10px 0 18px;
+        font-size: 16px;
+        color: #002147;
+        text-align: center;
+    }
+    .activation-code {
+        font-size: 28px;
+        font-weight: bold;
+        color: #003366;
+        background-color: #FFCC00;
+        padding: 16px 0;
+        border-radius: 8px;
+        letter-spacing: 4px;
+        display: block;
+        text-align: center;
+        margin: 25px auto;
+        width: 60%;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    }
+    .support-text {
+        font-size: 14px;
+        text-align: center;
+        color: #002147;
+        margin-top: 20px;
+    }
+    .footer-text {
+        text-align: center;
+        font-size: 13px;
+        color: #555;
+        margin-top: 25px;
+        border-top: 1px solid #ddd;
+        padding-top: 15px;
+    }
+</style>
 </head>
 <body>
     <div class="email-body">
-        <div class="email-content">
-            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzUUwseJpIHKwmf2f6HDprgqKif9KhgJ-zeQ&s" alt="Aura Bloom Logo" style="max-height: 100px;" class="email-header">
-            <h1>Welcome to Aura Bloom!</h1>
-            <p>Dear {{ user.full_name }},</p>
-            <p>We're thrilled to have you join our beauty community. To begin your journey, please activate your account with the code below:</p>
-            <div class="activation-code">{{ activate_code }}</div>
-            <p class="support-text">If you have any questions, please <a href="mailto:beautifulbeautyuz@gmail.com" class="support-button">contact our support team</a>.</p>
+        <div class="email-header">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Webster_University_Logo.svg/1024px-Webster_University_Logo.svg.png" alt="Webster University Logo">
         </div>
-        <p class="footer-text">You're receiving this email because you signed up for Aura.</p>
+
+        <h1>Welcome to the WUT Michigan Placement Test</h1>
+        <p>Dear {{ user.first_name }},</p>
+        <p>Thank you for registering for the <strong>Michigan English Placement Test (M-EPT)</strong> at Webster University in Tashkent.</p>
+        <p>Please activate your account using the code below to complete your exam registration:</p>
+
+        <div class="activation-code">{{ activate_code }}</div>
+
+        <p>Once activated, you will receive further details about your exam schedule and preparation materials.</p>
+
+        <p class="support-text">
+            For any questions, please contact us at
+            <a href="mailto:skuzimurodov@webster.edu" style="color:#003366; text-decoration:none; font-weight:bold;">skuzimurodov@webster.edu</a>.
+        </p>
+
+        <p class="footer-text">
+            © Webster University in Tashkent
+        </p>
     </div>
 </body>
 </html>

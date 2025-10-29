@@ -10,11 +10,13 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from root import settings
 from users.models import User, getKey
 from users.serializers import (UserRegisterSerializer, CheckActivationCodeSerializer, ResetPasswordSerializer,
-                               ResetPasswordConfirmSerializer, UserSerializer, SendVerificationCodeSerializer)
+                               ResetPasswordConfirmSerializer, UserSerializer, SendVerificationCodeSerializer,
+                               EmailTokenObtainPairSerializer)
 
 
 class UserRegisterCreateAPIView(CreateAPIView):
@@ -43,11 +45,12 @@ class CheckActivationCodeGenericAPIView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.data
+        # Use validated_data so write_only fields (like activate_code) are available
+        validated = serializer.validated_data
 
         # getKey may return None (expired/missing) or a JSON string depending on
         # how setKey was called elsewhere. Handle both cases robustly.
-        cached = getKey(key=data['email'])
+        cached = getKey(key=validated.get('email'))
         if not cached:
             return Response({"detail": "Activation data not found or expired."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -61,7 +64,9 @@ class CheckActivationCodeGenericAPIView(GenericAPIView):
         activate_code = cached.get('activate_code') if isinstance(cached, dict) else None
         user_data = cached.get('user') if isinstance(cached, dict) else None
 
-        if activate_code is not None and activate_code == data['activate_code']:
+        # compare codes as strings to avoid type mismatch (int vs str)
+        input_code = validated.get('activate_code')
+        if activate_code is not None and input_code is not None and str(activate_code) == str(input_code):
             # If we have a serialized user object in cache, attempt to create/activate it.
             # If cache stored a full user instance, we may need different handling; here we
             # support the common pattern where `user` is a dict of user fields.
@@ -127,7 +132,7 @@ class ResetPasswordView(CreateAPIView):
             html_content = render_to_string('forget_password.html', {'activation_code': activation_code})
             text_content = strip_tags(html_content)
 
-            from_email = f"Aura Team <{settings.EMAIL_HOST_USER}>"
+            from_email = f"WUT Team <{settings.EMAIL_HOST_USER}>"
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=text_content,
@@ -214,10 +219,10 @@ class SendVerificationCodeAPIView(CreateAPIView):
 
             # Send email with activation code
             subject = "Activation Code"
-            html_content = render_to_string('activation_payment.html', {'activation_code': activation_code})
+            html_content = render_to_string('activation.html', {'activation_code': activation_code})
             text_content = strip_tags(html_content)
 
-            from_email = f"Aura Team <{settings.EMAIL_HOST_USER}>"
+            from_email = f"WUT Team <{settings.EMAIL_HOST_USER}>"
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=text_content,
@@ -230,3 +235,8 @@ class SendVerificationCodeAPIView(CreateAPIView):
             return Response({"detail": "Activation code sent to your email."}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class EmailTokenObtainPairView(TokenObtainPairView):
+    """Use email instead of username for JWT token obtain."""
+    serializer_class = EmailTokenObtainPairSerializer

@@ -1,85 +1,120 @@
 import random
-
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from users.models import User, getKey, setKey
 
 
+# -------------------- REGISTER SERIALIZER --------------------
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(max_length=150, write_only=True)
 
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "email", "phone", "passport_id", "is_bachelor", "password")
+        fields = (
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "passport_id",
+            "is_bachelor",
+            "password",
+        )
 
     def validate(self, attrs):
         activate_code = random.randint(100000, 999999)
+
+        # Foydalanuvchini vaqtincha cache’da saqlash (hali DB ga yozilmaydi)
         user_data = {
-            'first_name': attrs.get('first_name'),
-            'last_name': attrs.get('last_name'),
-            'email': attrs.get('email'),
-            'username': attrs.get('email'),
-            'is_bachelor': attrs.get('is_bachelor', False),
-            'passport_id': attrs.get('passport_id'),
-            'password': attrs.get('password'),
-            'phone': attrs.get('phone')
+            "first_name": attrs["first_name"],
+            "last_name": attrs["last_name"],
+            "email": attrs["email"],
+            "username": attrs["email"],
+            "phone": attrs["phone"],
+            "passport_id": attrs["passport_id"],
+            "is_bachelor": attrs["is_bachelor"],
+            "password": attrs["password"],  # ❗ bu yerda hashlanmaydi
+            "is_active": False,
         }
+
+        # Cache/Redis ga saqlash (15 daqiqa)
         setKey(
-            key=attrs['email'],
-            value={
-                "user": user_data,
-                "activate_code": activate_code
-            },
-            timeout=1000
+            key=attrs["email"],
+            value={"user": user_data, "activate_code": activate_code},
+            timeout=900,
         )
+
+        # Email yuborish
         subject = "Activate Your Account"
-        html_content = render_to_string('activation.html', {'user': user_data, 'activate_code': activate_code})
-        text_content = strip_tags(html_content)
-        print(getKey(key=attrs['email']))
-
-        from_email = f"Aura Team <{settings.EMAIL_HOST_USER}>"
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=from_email,
-            to=[attrs['email']]
+        html_content = render_to_string(
+            "activation.html", {"user": user_data, "activate_code": activate_code}
         )
-        email.attach_alternative(html_content, "text/html")
-        email.send()
+        text_content = strip_tags(html_content)
+        from_email = f"WUT Team <{settings.EMAIL_HOST_USER}>"
 
-        return super().validate(attrs)
+        try:
+            msg = EmailMultiAlternatives(subject, text_content, from_email, [attrs["email"]])
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            print(f"✅ Activation email sent to {attrs['email']}")
+        except Exception as e:
+            print(f"⚠️ Email sending failed: {e}")
+            print(f"Activation code for {attrs['email']}: {activate_code}")
 
-        # print(getKey(key=attrs['email']))
-        # send_mail(
-        #     subject="Subject here",
-        #     message=f"Your activate code.\n{activate_code}",
-        #     from_email=EMAIL_HOST_USER,
-        #     recipient_list=[attrs['email']],
-        #     fail_silently=False,
-        # )
-        # return super().validate(attrs)
+        return attrs
 
 
+# -------------------- ACTIVATION CODE CHECK --------------------
 class CheckActivationCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
     activate_code = serializers.IntegerField(write_only=True)
 
     def validate(self, attrs):
-        data = getKey(key=attrs['email'])
-        print(data)
-        if data and data['activate_code'] == attrs['activate_code']:
-            return attrs
-        print(data)
-        raise serializers.ValidationError(
-            {"error": "Error activate code or email"}
-        )
+        email = attrs.get("email")
+        activate_code = attrs.get("activate_code")
+
+        cache_data = getKey(key=email)
+        if not cache_data:
+            raise serializers.ValidationError({"error": "Activation data not found or expired."})
+
+        saved_code = cache_data.get("activate_code")
+        if not saved_code:
+            raise serializers.ValidationError({"error": "Activation code missing in cache."})
+
+        if str(saved_code) != str(activate_code):
+            raise serializers.ValidationError({"error": "Invalid activation code."})
+
+        return attrs
+
+    def create(self, validated_data):
+        email = validated_data["email"]
+        cache_data = getKey(key=email)
+
+        if not cache_data:
+            raise serializers.ValidationError({"error": "Activation data expired."})
+
+        user_data = cache_data.get("user")
+        if not user_data:
+            raise serializers.ValidationError({"error": "User data missing in cache."})
+
+        # Parolni shu yerda hashlaymiz
+        user_data["password"] = make_password(user_data["password"])
+
+        # Foydalanuvchini yaratish
+        user = User.objects.create(**user_data)
+        user.is_active = True
+        user.save()
+
+        return user
 
 
+# -------------------- RESET PASSWORD --------------------
 class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -91,23 +126,27 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
     confirm_password = serializers.CharField()
 
 
+# -------------------- USER SERIALIZER --------------------
 class UserSerializer(serializers.ModelSerializer):
-    # services = serializers.SerializerMethodField()
-
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'image', 'passport_id', 'is_bachelor']
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "image",
+            "passport_id",
+            "is_bachelor",
+        ]
 
-    # def get_services(self, user):
-    #     services = user.services.all()
-    #     serializer = ServiceModelSerializer(services, many=True)
-    #     return serializer.data
 
-
+# -------------------- USER MODEL SERIALIZER --------------------
 class UserModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'phone')
+        fields = ("id", "phone")
 
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
@@ -116,57 +155,75 @@ class UserModelSerializer(serializers.ModelSerializer):
         return instance
 
 
+# -------------------- USER SERVICE SERIALIZER --------------------
 class UserServiceModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'username', 'image']
+        fields = ["id", "first_name", "last_name", "email", "username", "image"]
 
 
-class BalanceSerializer(serializers.ModelSerializer):
-    card_num = serializers.IntegerField(max_value=9999999999999999)
-    card_exp = serializers.DateField()
-    card_cvv = serializers.IntegerField(max_value=999)
-
-    class Meta:
-        model = User
-        fields = ('id', 'card_num', 'card_exp', 'card_cvv')
-
-    def update(self, instance, validated_data):
-        instance.card_num = validated_data.get('card_num', instance.card_num)
-        instance.card_exp = validated_data.get('card_exp', instance.card_exp)
-        instance.card_cvv = validated_data.get('card_cvv', instance.card_cvv)
-        instance.save()
-        return instance
-
-
-import json
-
-
+# -------------------- SEND VERIFICATION CODE --------------------
 class SendVerificationCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def create(self, validated_data):
-        email = validated_data['email']
-        verification_code = self.generate_verification_code()
+        email = validated_data["email"]
+        verification_code = str(random.randint(100000, 999999))
 
-        # Save the activation code using setKey
         setKey(
             key=email,
-            value=json.dumps({"activate_code": verification_code}),
-            timeout=600  # Cache for 10 minutes
+            value={"activate_code": verification_code},
+            timeout=600,
         )
 
-        html_content = render_to_string('activation_payment.html',
-                                        {'activate_code': verification_code, 'user': {'first_name': 'User', 'last_name': ''}})
+        subject = "Your Verification Code"
+        html_content = render_to_string(
+            "activation.html",
+            {"activate_code": verification_code, "user": {"full_name": "User"}},
+        )
         text_content = strip_tags(html_content)
+        from_email = f"WUT Team <{settings.EMAIL_HOST_USER}>"
 
-        subject = 'Your Verification Code'
-        from_email = 'from@example.com'
-        msg = EmailMultiAlternatives(subject, text_content, from_email, [email])
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
+        try:
+            msg = EmailMultiAlternatives(subject, text_content, from_email, [email])
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            print(f"✅ Verification email sent to {email}")
+        except Exception as e:
+            print(f"⚠️ Email send failed for {email}: {e}")
+            print(f"Verification code: {verification_code}")
 
-        return validated_data
+        return {"email": email, "status": "Verification code sent"}
 
-    def generate_verification_code(self):
-        return str(random.randint(100000, 999999))
+
+# -------------------- JWT LOGIN (EMAIL & PASSWORD) --------------------
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = 'email'
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({'email': 'User with this email does not exist.'})
+
+        if not user.check_password(password):
+            raise serializers.ValidationError({'password': 'Incorrect password.'})
+
+        if not user.is_active:
+            raise serializers.ValidationError({'error': 'Account is not activated yet.'})
+
+        refresh = RefreshToken.for_user(user)
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            }
+        }
