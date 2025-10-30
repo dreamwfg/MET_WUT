@@ -19,7 +19,6 @@ class CustomUserManager(BaseUserManager):
             last_name=last_name,
             passport_id=passport_id,
             phone=phone,
-            username=email,
         )
         if password:
             user.set_password(password)
@@ -30,11 +29,13 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, first_name, last_name, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
         user = self.create_user(email, first_name, last_name, password=password, **extra_fields)
-        user.is_staff = True
-        user.is_superuser = True
         user.save(using=self._db)
         return user
+
 
 
 class User(AbstractBaseUser, PermissionsMixin):
