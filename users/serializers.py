@@ -1,4 +1,5 @@
 import random
+import threading
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.mail import EmailMultiAlternatives
@@ -9,6 +10,20 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from users.models import User, getKey, setKey
+
+
+# ---------- Helper: Async email sender ----------
+def send_email_async(subject, text_content, html_content, from_email, recipient):
+    """Send emails asynchronously to prevent Gunicorn timeouts."""
+    def _send():
+        try:
+            msg = EmailMultiAlternatives(subject, text_content, from_email, [recipient])
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            print(f"✅ Email sent to {recipient}")
+        except Exception as e:
+            print(f"⚠️ Email send failed for {recipient}: {e}")
+    threading.Thread(target=_send, daemon=True).start()
 
 
 # -------------------- REGISTER SERIALIZER --------------------
@@ -30,27 +45,26 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         activate_code = random.randint(100000, 999999)
 
-        # Foydalanuvchini vaqtincha cache’da saqlash (hali DB ga yozilmaydi)
+        # Temporarily store user data in cache (not yet saved to DB)
         user_data = {
             "first_name": attrs["first_name"],
             "last_name": attrs["last_name"],
             "email": attrs["email"],
-            "username": attrs["email"],
             "phone": attrs["phone"],
-            "passport_id": attrs["passport_id"],
-            "is_bachelor": attrs["is_bachelor"],
-            "password": attrs["password"],  # ❗ bu yerda hashlanmaydi
+            "passport_id": attrs.get("passport_id"),
+            "is_bachelor": attrs.get("is_bachelor", False),
+            "password": attrs["password"],
             "is_active": False,
         }
 
-        # Cache/Redis ga saqlash (15 daqiqa)
+        # Cache data for 15 minutes
         setKey(
             key=attrs["email"],
             value={"user": user_data, "activate_code": activate_code},
             timeout=900,
         )
 
-        # Email yuborish
+        # Email setup
         subject = "Activate Your Account"
         html_content = render_to_string(
             "activation.html", {"user": user_data, "activate_code": activate_code}
@@ -58,14 +72,8 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         text_content = strip_tags(html_content)
         from_email = f"WUT Team <{settings.EMAIL_HOST_USER}>"
 
-        try:
-            msg = EmailMultiAlternatives(subject, text_content, from_email, [attrs["email"]])
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            print(f"✅ Activation email sent to {attrs['email']}")
-        except Exception as e:
-            print(f"⚠️ Email sending failed: {e}")
-            print(f"Activation code for {attrs['email']}: {activate_code}")
+        # Send email asynchronously
+        send_email_async(subject, text_content, html_content, from_email, attrs["email"])
 
         return attrs
 
@@ -84,9 +92,6 @@ class CheckActivationCodeSerializer(serializers.Serializer):
             raise serializers.ValidationError({"error": "Activation data not found or expired."})
 
         saved_code = cache_data.get("activate_code")
-        if not saved_code:
-            raise serializers.ValidationError({"error": "Activation code missing in cache."})
-
         if str(saved_code) != str(activate_code):
             raise serializers.ValidationError({"error": "Invalid activation code."})
 
@@ -95,18 +100,12 @@ class CheckActivationCodeSerializer(serializers.Serializer):
     def create(self, validated_data):
         email = validated_data["email"]
         cache_data = getKey(key=email)
-
-        if not cache_data:
-            raise serializers.ValidationError({"error": "Activation data expired."})
-
         user_data = cache_data.get("user")
+
         if not user_data:
-            raise serializers.ValidationError({"error": "User data missing in cache."})
+            raise serializers.ValidationError({"error": "User data missing or expired."})
 
-        # Parolni shu yerda hashlaymiz
         user_data["password"] = make_password(user_data["password"])
-
-        # Foydalanuvchini yaratish
         user = User.objects.create(**user_data)
         user.is_active = True
         user.save()
@@ -140,7 +139,6 @@ class UserSerializer(serializers.ModelSerializer):
             "passport_id",
             "is_bachelor",
         ]
-
 
 # -------------------- USER MODEL SERIALIZER --------------------
 class UserModelSerializer(serializers.ModelSerializer):

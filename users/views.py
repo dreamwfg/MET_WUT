@@ -1,11 +1,11 @@
-import json
 import random
 
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from rest_framework import status
-from rest_framework.generics import GenericAPIView, CreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.generics import CreateAPIView, GenericAPIView
+from rest_framework.generics import RetrieveUpdateDestroyAPIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,94 +14,80 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from root import settings
 from users.models import User, getKey
-from users.serializers import (UserRegisterSerializer, CheckActivationCodeSerializer, ResetPasswordSerializer,
+from users.serializers import (ResetPasswordSerializer,
                                ResetPasswordConfirmSerializer, UserSerializer, SendVerificationCodeSerializer,
                                EmailTokenObtainPairSerializer)
+from users.serializers import (
+    UserRegisterSerializer,
+    CheckActivationCodeSerializer,
+)
 
 
-class UserRegisterCreateAPIView(CreateAPIView):
-    """
-    API endpoint that allows users to be registered.
-
-    Example request:
-    """
+# -------------------- REGISTER VIEW --------------------
+class UserRegisterView(GenericAPIView):
     serializer_class = UserRegisterSerializer
 
-    def create(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        # copy validated data but remove password before returning
+        response_data = dict(serializer.validated_data)
+        response_data.pop("password", None)
+
+        return Response(
+            {"detail": "Activation email sent successfully.", "data": response_data},
+            status=status.HTTP_201_CREATED,
+        )
 
 
+# -------------------- ACTIVATION CODE CHECK VIEW --------------------
 class CheckActivationCodeGenericAPIView(GenericAPIView):
-    """
-    API endpoint that allows users to be checked activation code.
-
-    Example request:
-    """
+    """Verify activation code and create active user."""
     serializer_class = CheckActivationCodeSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # Use validated_data so write_only fields (like activate_code) are available
+
         validated = serializer.validated_data
+        email = validated["email"]
 
-        # getKey may return None (expired/missing) or a JSON string depending on
-        # how setKey was called elsewhere. Handle both cases robustly.
-        cached = getKey(key=validated.get('email'))
-        if not cached:
-            return Response({"detail": "Activation data not found or expired."}, status=status.HTTP_400_BAD_REQUEST)
+        cache_data = getKey(key=email)
+        if not cache_data:
+            return Response({"error": "Activation data expired."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if isinstance(cached, str):
-            try:
-                cached = json.loads(cached)
-            except Exception:
-                return Response({"detail": "Activation data malformed."}, status=status.HTTP_400_BAD_REQUEST)
+        activate_code = cache_data.get("activate_code")
+        user_data = cache_data.get("user")
 
-        # Expecting a dict with keys 'user' and 'activate_code'
-        activate_code = cached.get('activate_code') if isinstance(cached, dict) else None
-        user_data = cached.get('user') if isinstance(cached, dict) else None
+        if str(activate_code) != str(validated["activate_code"]):
+            return Response({"error": "Invalid activation code."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # compare codes as strings to avoid type mismatch (int vs str)
-        input_code = validated.get('activate_code')
-        if activate_code is not None and input_code is not None and str(activate_code) == str(input_code):
-            # If we have a serialized user object in cache, attempt to create/activate it.
-            # If cache stored a full user instance, we may need different handling; here we
-            # support the common pattern where `user` is a dict of user fields.
-            if isinstance(user_data, dict):
-                # Create the user record if it doesn't exist
-                try:
-                    user_obj = User.objects.get(email=user_data.get('email'))
-                except User.DoesNotExist:
-                    user_obj = User.objects.create_user(
-                        email=user_data.get('email'),
-                        first_name=user_data.get('first_name') or '',
-                        last_name=user_data.get('last_name') or '',
-                        passport_id=user_data.get('passport_id'),
-                        phone=user_data.get('phone'),
-                        is_bachelor=user_data.get('is_bachelor', False),
-                        password=user_data.get('password')
-                    )
-            else:
-                # If `user` is not a dict, assume it's an actual User instance
-                user_obj = user_data if isinstance(user_data, User) else None
+        # Create user
+        user_data["password"] = user_data["password"]
+        user_obj = User.objects.create_user(
+            email=user_data["email"],
+            first_name=user_data["first_name"],
+            last_name=user_data["last_name"],
+            passport_id=user_data.get("passport_id"),
+            phone=user_data.get("phone"),
+            is_bachelor=user_data.get("is_bachelor", False),
+            password=user_data["password"],
+        )
+        user_obj.is_active = True
+        user_obj.save()
 
-            if user_obj is None:
-                return Response({"detail": "User data invalid or missing."}, status=status.HTTP_400_BAD_REQUEST)
+        # Issue JWT tokens
+        refresh = RefreshToken.for_user(user_obj)
 
-            user_obj.is_active = True
-            user_obj.save()
-            refresh = RefreshToken.for_user(user_obj)
-
-            return Response({
-                "message": "Your email has been confirmed",
+        return Response(
+            {
+                "message": "Your account has been activated successfully.",
                 "access_token": str(refresh.access_token),
-                "refresh_token": str(refresh)
-            }, status=status.HTTP_200_OK)
-
-        return Response({"error": "Invalid activate code or email"}, status=status.HTTP_400_BAD_REQUEST)
+                "refresh_token": str(refresh),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ResetPasswordView(CreateAPIView):
