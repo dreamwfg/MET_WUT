@@ -14,15 +14,14 @@ from users.models import User, getKey, setKey
 
 # ---------- Helper: Async email sender ----------
 def send_email_async(subject, text_content, html_content, from_email, recipient):
-    """Send emails asynchronously to prevent Gunicorn timeouts."""
     def _send():
         try:
             msg = EmailMultiAlternatives(subject, text_content, from_email, [recipient])
             msg.attach_alternative(html_content, "text/html")
             msg.send()
-            print(f"✅ Email sent to {recipient}")
+            logger.info(f"Email sent to {recipient}")
         except Exception as e:
-            print(f"⚠️ Email send failed for {recipient}: {e}")
+            logger.error(f"Failed to send email to {recipient}: {e}")
     threading.Thread(target=_send, daemon=True).start()
 
 
